@@ -182,8 +182,10 @@ def init_display():
     fig, ax = plt.subplots()
     fig.subplots_adjust(right=0.8)
 
-    im = ax.imshow(grid, vmin=0, vmax=255)
+    global _board_axes
+    _board_axes = ax
 
+    im = ax.imshow(grid, vmin=0, vmax=255)
     apply_axis_styling(ax)
     apply_legend(fig, ax)
     set_titles(fig,ax,0)
@@ -195,13 +197,15 @@ def init_display():
     plt.pause(0.001)
     return fig, ax, im
 
+# UI Globals
 _click_queue = []
 _command_queue = []
 _textbox = None
+_board_axes = None
 
 def on_click(event):
     """Capture mouse clicks on the grid and queues integer cells"""
-    if not event.inaxes:
+    if event.inaxes is not _board_axes: #Ignores other axes not on gameboard
         return
     try:
         x = int(round(event.xdata))
