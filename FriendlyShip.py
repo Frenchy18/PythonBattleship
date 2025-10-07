@@ -1,11 +1,14 @@
 from dataclasses import dataclass, field
-from typing import Set, Tuple
+from typing import Iterable, List, Set, Tuple
+import random as rand
 
 Coord = Tuple[int, int]
 
-class FriendlyShip:
+class Ship:
 
     def __init__(self, grid_size):
+        if grid_size < 3:
+            raise ValueError("grid_size must be at least 3.")
         self.grid_size = grid_size
         self.cells: Set[Coord] = set()
         self.hits: Set[Coord] = set()
@@ -66,3 +69,44 @@ class FriendlyShip:
             if 0 <= x < grid_size and 1 <= y <= grid_size -2:
                 return x,y
             print("Center to close to edge and is out of bounds. Try again.")
+
+    def random_valid_center(grid_size):
+        x,y = rand.randint(0,grid_size-1),rand.randint(1,grid_size-2)
+
+        return x,y
+    
+    def spawn_no_overlap(
+            cls,
+            grid_size: int,
+            forbidden: Iterable[Coord] = (),
+            max_tries: int = 10000,
+    ):
+        blocked = set(forbidden)
+        for _ in range(max_tries):
+            x,y = cls.random_valid_center(grid_size)
+            candidate = {(x,y-1),(x,y),(x,y+1)}
+            if candidate.isdisjoint(blocked):
+                ship = cls(grid_size)
+                ship.place_center(x,y)
+                return ship
+            
+        raise RuntimeError("Could not place ship without overlap after max tries")
+    
+    def place_many_no_overlap(
+            cls,
+            grid_size,
+            count: int,
+            forbidden: Iterable[Coord] = (),
+            max_tries: int = 10000,
+    ):
+        ships: List[Ship] = []
+        blocked: Set[Coord] = set(forbidden)
+
+        for _ in range(count):
+            ship = cls.spawn_no_overlap(grid_size,blocked,max_tries)
+            ships.append(ship)
+            blocked |= ship.cells
+
+        return ships
+    
+EnemyShip = Ship

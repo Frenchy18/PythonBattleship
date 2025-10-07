@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from matplotlib.widgets import TextBox
-from FriendlyShip import FriendlyShip
+from FriendlyShip import Ship
 
 
 # Initialize grid size and channels
@@ -304,7 +304,7 @@ def enemy_pick_target(state):
         return rand.choice(candidates)
     return enemy_fire_random(state)
 
-def enemy_fire(ship: FriendlyShip, state):
+def enemy_fire(ship: Ship, state):
     """Enemy takes one shot. Returns (x,y, hit). Enemy misses show as yellow"""
     shot = enemy_pick_target(state) if state["known_hits"] else enemy_fire_random(state)
     if shot is None:
@@ -328,8 +328,8 @@ def acquire_rand(excluded_cells):
             return x,y
         
 def setup_friendly():
-    ship = FriendlyShip(grid_size=GRID_SIZE)
-    center_x,center_y = FriendlyShip.prompt_friendly(GRID_SIZE)
+    ship = Ship(grid_size=GRID_SIZE)
+    center_x,center_y = Ship.prompt_friendly(GRID_SIZE)
     ship.place_center(center_x,center_y)
     return ship
 
