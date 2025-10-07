@@ -9,6 +9,7 @@
 import random as rand
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 from FriendlyShip import FriendlyShip
 
 
@@ -18,16 +19,31 @@ CHANNELS = 3
 
 # Global score variables and distance variables
 HIGH_SCORE = 33
-high_score_dist = 1
+HIGH_SCORE_DIST = 1
 GOAL = 99
 
 # Distance shot to trigger AI Enemy
 NEAR_TRIGGER_DIST = 3
 
-# Colors
-ENEMY_MISS_COLOR = (255,255,0)
-PLAYER_HIT_COLOR = (255,0,0)
-PLAYER_MISS_COLOR = (255)
+# Color-Blind friendly Colors
+CBF_BLUE = (0,114,178)
+CBF_ORANGE = (230, 159, 0)
+CBF_SKY = (86, 180, 233)
+CBF_GREEN = (0, 158, 115)
+CBF_YELLOW = (240, 228, 66)
+CBF_VERMILLION = (213, 94, 0)
+CBF_PURPLE = (204, 121, 167)
+CBF_BLACK = (0,0,0)
+CBF_GRAY = (200, 200, 200)
+
+
+ENEMY_MISS_COLOR = CBF_ORANGE
+PLAYER_HIT_COLOR = CBF_VERMILLION
+PLAYER_MISS_COLOR = CBF_GRAY
+FRIENDLY_ALIVE = CBF_BLUE
+FRIENDLY_HIT = CBF_PURPLE
+FRIENDLY_SUNK = CBF_BLACK
+
 
 # Create a grid using NumPy
 grid = np.zeros((GRID_SIZE, GRID_SIZE, CHANNELS),np.uint8)
@@ -37,29 +53,65 @@ def instructions():
     """
     Gives the user instructions and instructs them how to continue.
     """
+    max_col = chr(ord('A') + GRID_SIZE-1)
 
-    print("Welcome  to the battlefield, Commander!\n" \
-    "Enter target coordinates to fire on an unseeen enemy\n" \
-    "Type -1 at any prompt to exit.\n")
+    print(
+        "\n=== How to Play === \n"
+        "* Enter grid coordinates in Battleship style, e.g., B7 or K{GRID_SIZE}.\n"
+        "* Columns:  A..{max_col} Rows: 1..{GRID_SIZE}\n"
+        "* Type 'help' anytime to re-show these instructions. \n"
+        "* Type 'quit' or -1 to exit. \n"
+    )
 
-def request_coor(axis, target):
+def _col_letter_to_index(letter):
+    letter = letter.upper()
+    col = ord(letter) - ord('A')
+    if 0 <= col < GRID_SIZE:
+        return col
+    raise ValueError("Column out of bounds")
+
+def _to_battleship_string(x,y):
+    return f"{chr(ord('A') + x)}{y+1}"
+
+def parse_battleship_coord(token):
+    token = token.strip().replace(" ","").replace(",","")
+    if not token:
+        raise ValueError("Empty coordinate")
+    
+    col_char = token[0]
+    row_str = token[1:]
+    if not col_char.isalpha() or not row_str.isdigit():
+        raise ValueError("Use format like B7 or K11")
+    
+    x = _col_letter_to_index(col_char)
+    row = int(row_str)
+    if not (1 <= row <= GRID_SIZE):
+        raise ValueError("Row out of bounds")
+    y = row - 1
+    return x,y
+
+def request_coor(target):
+    max_col = chr(ord('A') + GRID_SIZE-1)
+
     while True:
-        user_inp = input(f"Enter {axis} (0..{GRID_SIZE-1}): ").strip().lower()
-        if user_inp == "-1":
+        user_inp = input(
+            f"Enter coordinate (A1..{max_col}{GRID_SIZE}) "
+            "[help/quit]: "
+        ).strip().lower()
+
+        if user_inp in ('-1','quit','exit'):
             raise SystemExit
+        if user_inp in ('help','h','?'):
+            instructions()
+            continue
         if user_inp == "cheat":
             tx, ty = target
             print(f"Cheat activated: Enemy at x={tx}, y={ty}. Cheater...")
             continue
         try:
-            val = int(user_inp)
-        except ValueError:
-            print("Please use an integer.")
-            continue
-
-        if 0 <= val < GRID_SIZE:
-            return val
-        print(f"Value must be between 0 and {GRID_SIZE-1}.")
+           return parse_battleship_coord(user_inp)
+        except ValueError as e:
+            print(f"Invalid coordinate: {e}. Try B7 or K11")
         
 def scorekeepr(current_score):
     if current_score < GOAL:
@@ -77,34 +129,66 @@ def calculate_distance(user_x, user_y, target_x, target_y):
     return ((user_x - target_x)**2 + (user_y - target_y)**2)**0.5
 
 def calculate_score(distance):
-    if distance <= high_score_dist:
+    if distance <= HIGH_SCORE_DIST:
         print("Bullseye Commander!")
         return HIGH_SCORE,True
     else:
         print("Miss!")
         return 0,False
     
+#----------- Display -----------------
+def apply_axis_styling(ax):
+    ax.set_xticks(np.arange(GRID_SIZE))
+    ax.set_yticks(np.arange(GRID_SIZE))
+    ax.set_xticklabels([chr(ord('A')+i) for i in range(GRID_SIZE)])
+    ax.set_yticklabels([str(i+1) for i in range(GRID_SIZE)])
+    ax.set_xticks(np.arange(-0.5,GRID_SIZE,1), minor=True)
+    ax.set_yticks(np.arange(-0.5,GRID_SIZE,1), minor=True)
+    ax.grid(which='minor',color=(120/255,120/255,120/255),linestyle='-', linewidth=0.5)
+    ax.tick_params(which='both',length=0)
+
+def set_titles(fig,ax,score):
+    title = f"Battlefield - Score: {score}/{GOAL}"
+    ax.set_title(title)
+    try:
+        fig.canvas.manager.set_window_title(title)
+    except Exception:
+        pass
+
+def apply_legend(ax):
+    prev = ax.get_legend()
+    if prev is not None:
+        prev.remove()
+    handles = [
+        Patch(facecolor=np.array(PLAYER_HIT_COLOR)/255.0, edgecolor='none',label='Player Hit'),
+        Patch(facecolor=np.array(PLAYER_MISS_COLOR)/255.0, edgecolor='none',label='Player Miss'),
+        Patch(facecolor=np.array(ENEMY_MISS_COLOR)/255.0, edgecolor='none',label='Enemy Miss'),
+        Patch(facecolor=np.array(FRIENDLY_ALIVE)/255.0, edgecolor='none',label='Friendly Alive'),
+        Patch(facecolor=np.array(FRIENDLY_HIT)/255.0, edgecolor='none', label='Friendly Hit'),
+        Patch(facecolor=np.array(FRIENDLY_SUNK)/255.0, edgecolor='none', label='Friendly Sunk'),
+    ]
+    ax.legend(handles=handles, loc="upper right", framealpha=0.9, fontsize=9)
+
 def init_display():
     plt.ion()
     fig, ax = plt.subplots()
     im = ax.imshow(grid, vmin=0, vmax=255)
-    ax.set_title("Battlefield")
-    ax.set_xlabel("x -> (West)")
-    ax.set_ylabel("y -> (North)")
+    apply_axis_styling(ax)
+    apply_legend(ax)
+    set_titles(fig,ax,0)
     fig.canvas.draw_idle()
     plt.pause(0.001)
     return fig, ax, im
 
-def update_display(fig, im):
+def update_display(fig, ax, im, score):
     im.set_data(grid)
+    set_titles(fig,ax,score)
+    apply_legend(ax)
     fig.canvas.draw_idle()
     plt.pause(0.001)
 
 def update_grid(user_x, user_y, horm):
-    if horm == True:
-        grid[user_y,user_x] = (255,0,0)
-    else:
-        grid[user_y,user_x] = 255
+    grid[user_y,user_x] = PLAYER_HIT_COLOR if horm else PLAYER_MISS_COLOR
 
 def enemy_init():
     """State: active flag, fired set, and known hit cells on friendly ship"""
@@ -169,25 +253,22 @@ def main():
     target = acquire_rand()
     current_score = 0
     ship = setup_friendly()
-
     enemy = enemy_init()
 
     fig, ax, im = init_display()
-    ship.paint_on_grid(grid)
-    update_display(fig, im)
+    ship.paint_on_grid(grid, color_alive=FRIENDLY_ALIVE, color_hit=FRIENDLY_HIT, color_sunk=FRIENDLY_SUNK)
+    update_display(fig, ax, im, current_score)
 
     while current_score < GOAL:
-        x = request_coor("x", target)
-        y = request_coor("y", target)
+        x,y = request_coor(target)
         d = calculate_distance(x,y,*target)
         points,horm = calculate_score(d)
         update_grid(x,y,horm)
 
-        ship.paint_on_grid(grid)
-        update_display(fig, im)
-
+        ship.paint_on_grid(grid, color_alive=FRIENDLY_ALIVE, color_hit=FRIENDLY_HIT, color_sunk=FRIENDLY_SUNK)
         current_score += points
         scorekeepr(current_score)
+        update_display(fig, ax, im, current_score)
 
         if not enemy["active"] and (horm or d <= NEAR_TRIGGER_DIST):
             enemy["active"] = True
@@ -195,15 +276,16 @@ def main():
         if enemy["active"]:
             ex,ey,e_hit = enemy_fire(ship,enemy)
             if ex is not None:
-                print(f"Enemy fires at ({ex},{ey}) - {"HIT!" if e_hit else 'miss.'}")
+                print(f"Enemy fires at {_to_battleship_string(ex,ey)} - {"HIT!" if e_hit else 'miss.'}")
 
-                ship.paint_on_grid(grid)
-                update_display(fig, im)
+                ship.paint_on_grid(grid,color_alive=FRIENDLY_ALIVE,color_hit=FRIENDLY_HIT,color_sunk=FRIENDLY_SUNK)
+                update_display(fig, ax, im, current_score)
 
                 if ship.is_sunk():
                     print("Your ship has been sunk!\n" \
                     "You've let us down Commander.\n"
                     "Try again next time!")
+                    break
 
     plt.ioff()
     plt.show()
