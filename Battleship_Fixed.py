@@ -190,6 +190,30 @@ def init_display():
     plt.pause(0.001)
     return fig, ax, im
 
+_click_queue = []
+
+def on_click(event):
+    if not event.inaxes:
+        return
+    try:
+        x = int(round(event.xdata))
+        y= int(round(event.ydata))
+    except (TypeError, ValueError):
+        return
+    if 0 <= x < GRID_SIZE and 0 <= y < GRID_SIZE:
+        _click_queue.append((x,y))
+
+def enable_mouse_input(fig):
+    fig.canvas.mpl_connect('button_press_event',on_click)
+
+def request_coord_mouse(fig, ax, target):
+    '''Block until user clicks a valid cell; returns (x,y)'''
+
+    ax.set_xlabel("Click a cell (or type 'help' in console).")
+    while not _click_queue:
+        plt.pause(0.05)
+    return _click_queue.pop(0)
+
 def update_display(fig, ax, im, score):
     im.set_data(grid)
     set_titles(fig,ax,score)
@@ -266,11 +290,13 @@ def main():
     enemy = enemy_init()
 
     fig, ax, im = init_display()
+    enable_mouse_input(fig)
     ship.paint_on_grid(grid, color_alive=FRIENDLY_ALIVE, color_hit=FRIENDLY_HIT, color_sunk=FRIENDLY_SUNK)
     update_display(fig, ax, im, current_score)
 
     while current_score < GOAL:
-        x,y = request_coor(target)
+        #x,y = request_coor(target)
+        x,y = request_coord_mouse(fig, ax, target)
         d = calculate_distance(x,y,*target)
         points,horm = calculate_score(d)
         update_grid(x,y,horm)
