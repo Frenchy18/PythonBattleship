@@ -10,6 +10,7 @@ import random as rand
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
+from matplotlib.widgets import TextBox
 from FriendlyShip import FriendlyShip
 
 
@@ -186,13 +187,20 @@ def init_display():
     apply_axis_styling(ax)
     apply_legend(fig, ax)
     set_titles(fig,ax,0)
+
+    enable_mouse_input(fig)
+    create_command_box(fig)
+    
     fig.canvas.draw_idle()
     plt.pause(0.001)
     return fig, ax, im
 
 _click_queue = []
+_command_queue = []
+_textbox = None
 
 def on_click(event):
+    """Capture mouse clicks on the grid and queues integer cells"""
     if not event.inaxes:
         return
     try:
@@ -206,13 +214,46 @@ def on_click(event):
 def enable_mouse_input(fig):
     fig.canvas.mpl_connect('button_press_event',on_click)
 
+def on_command_submit(text):
+    """Textbox callback: push lowercased commands onto the queue and then clears"""
+    global _textbox
+    cmd = (text or "").strip()
+    if not cmd:
+        return
+    _command_queue.append(cmd.lower())
+
+    if _textbox is not None:
+        _textbox.set_val('')
+
+def create_command_box(fig):
+    """Creates a textbox on the right side of the figure for commands."""
+    global _textbox
+
+    axbox = fig.add_axes([0.82, 0.08, 0.16, 0.05])
+    _textbox = TextBox(axbox, "Command:", initial="")
+    _textbox.on_submit(on_command_submit)
+    return _textbox
+
 def request_coord_mouse(fig, ax, target):
     '''Block until user clicks a valid cell; returns (x,y)'''
 
     ax.set_xlabel("Click a cell (or type 'help' in console).")
-    while not _click_queue:
-        plt.pause(0.05)
-    return _click_queue.pop(0)
+    while _command_queue:
+        cmd = _command_queue.pop(0)
+        if cmd in ('quit', 'exit', '-1'):
+            raise SystemExit
+        elif cmd in ("help", "h", "?"):
+            instructions()
+        elif cmd == "cheat":
+            tx, ty = enemy_target_xy
+            print(f"Enemy at {_to_battleship_string(tx,ty)}. Cheater...")
+        else:
+            print(f"Unknown Command: {cmd}. (Try help/quit).")
+
+    if _click_queue:
+        return _click_queue.pop(0)
+    
+    plt.pause(0.05)
 
 def update_display(fig, ax, im, score):
     im.set_data(grid)
@@ -273,9 +314,14 @@ def enemy_fire(ship: FriendlyShip, state):
         grid[y,x] = ENEMY_MISS_COLOR
         return x,y,False
 
-def acquire_rand():
-    return rand.randint(0,GRID_SIZE-1),rand.randint(0,GRID_SIZE-1)
+def acquire_rand(excluded_cells):
+    """Return a random (x,y) not in excluded_cells (Friendly Ships)"""
+    while True:
+        x,y = rand.randint(0,GRID_SIZE-1),rand.randint(0,GRID_SIZE-1)
 
+        if (x,y) not in excluded_cells:
+            return x,y
+        
 def setup_friendly():
     ship = FriendlyShip(grid_size=GRID_SIZE)
     center_x,center_y = FriendlyShip.prompt_friendly(GRID_SIZE)
@@ -284,9 +330,9 @@ def setup_friendly():
 
 def main():
     instructions()
-    target = acquire_rand()
     current_score = 0
     ship = setup_friendly()
+    target = acquire_rand(ship.cells)
     enemy = enemy_init()
 
     fig, ax, im = init_display()
