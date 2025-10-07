@@ -21,7 +21,7 @@ CHANNELS = 3
 # Global score variables and distance variables
 HIGH_SCORE = 33
 HIGH_SCORE_DIST = 1
-GOAL = 99
+GOAL = 500
 
 # Distance shot to trigger AI Enemy
 NEAR_TRIGGER_DIST = 3
@@ -190,7 +190,7 @@ def init_display():
 
     enable_mouse_input(fig)
     create_command_box(fig)
-    
+
     fig.canvas.draw_idle()
     plt.pause(0.001)
     return fig, ax, im
@@ -238,22 +238,23 @@ def request_coord_mouse(fig, ax, target):
     '''Block until user clicks a valid cell; returns (x,y)'''
 
     ax.set_xlabel("Click a cell (or type 'help' in console).")
-    while _command_queue:
-        cmd = _command_queue.pop(0)
-        if cmd in ('quit', 'exit', '-1'):
-            raise SystemExit
-        elif cmd in ("help", "h", "?"):
-            instructions()
-        elif cmd == "cheat":
-            tx, ty = enemy_target_xy
-            print(f"Enemy at {_to_battleship_string(tx,ty)}. Cheater...")
-        else:
-            print(f"Unknown Command: {cmd}. (Try help/quit).")
+    while True:
+        while _command_queue:
+            cmd = _command_queue.pop(0)
+            if cmd in ('quit', 'exit', '-1'):
+                raise SystemExit
+            elif cmd in ("help", "h", "?"):
+                instructions()
+            elif cmd == "cheat":
+                tx, ty = target
+                print(f"Enemy at {_to_battleship_string(tx,ty)}. Cheater...")
+            else:
+                print(f"Unknown Command: {cmd}. (Try help/quit).")
 
-    if _click_queue:
-        return _click_queue.pop(0)
-    
-    plt.pause(0.05)
+        if _click_queue:
+            return _click_queue.pop(0)
+        
+        plt.pause(0.05)
 
 def update_display(fig, ax, im, score):
     im.set_data(grid)
@@ -336,7 +337,6 @@ def main():
     enemy = enemy_init()
 
     fig, ax, im = init_display()
-    enable_mouse_input(fig)
     ship.paint_on_grid(grid, color_alive=FRIENDLY_ALIVE, color_hit=FRIENDLY_HIT, color_sunk=FRIENDLY_SUNK)
     update_display(fig, ax, im, current_score)
 
