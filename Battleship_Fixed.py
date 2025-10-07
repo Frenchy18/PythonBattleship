@@ -57,8 +57,8 @@ def instructions():
 
     print(
         "\n=== How to Play === \n"
-        "* Enter grid coordinates in Battleship style, e.g., B7 or K{GRID_SIZE}.\n"
-        "* Columns:  A..{max_col} Rows: 1..{GRID_SIZE}\n"
+        f"* Enter grid coordinates in Battleship style, e.g., B7 or K{GRID_SIZE}.\n"
+        f"* Columns:  A..{max_col} Rows: 1..{GRID_SIZE}\n"
         "* Type 'help' anytime to re-show these instructions. \n"
         "* Type 'quit' or -1 to exit. \n"
     )
@@ -106,12 +106,12 @@ def request_coor(target):
             continue
         if user_inp == "cheat":
             tx, ty = target
-            print(f"Cheat activated: Enemy at x={tx}, y={ty}. Cheater...")
+            print(f"Cheat activated: Enemy at {_to_battleship_string(tx,ty)}. Cheater...")
             continue
         try:
            return parse_battleship_coord(user_inp)
         except ValueError as e:
-            print(f"Invalid coordinate: {e}. Try B7 or K11")
+            print(f"Invalid coordinate: {e}. Try B7 or {max_col}{GRID_SIZE}")
         
 def scorekeepr(current_score):
     if current_score < GOAL:
@@ -155,7 +155,7 @@ def set_titles(fig,ax,score):
     except Exception:
         pass
 
-def apply_legend(ax):
+def apply_legend(fig, ax):
     prev = ax.get_legend()
     if prev is not None:
         prev.remove()
@@ -167,14 +167,24 @@ def apply_legend(ax):
         Patch(facecolor=np.array(FRIENDLY_HIT)/255.0, edgecolor='none', label='Friendly Hit'),
         Patch(facecolor=np.array(FRIENDLY_SUNK)/255.0, edgecolor='none', label='Friendly Sunk'),
     ]
-    ax.legend(handles=handles, loc="upper right", framealpha=0.9, fontsize=9)
+    ax.legend(
+        handles=handles, 
+        loc="center left",
+        bbox_to_anchor=(1.02,0.5),
+        borderaxespad=0.0,
+        framealpha=0.9,
+        fontsize=9,
+    )
 
 def init_display():
     plt.ion()
     fig, ax = plt.subplots()
+    fig.subplots_adjust(right=0.8)
+
     im = ax.imshow(grid, vmin=0, vmax=255)
+
     apply_axis_styling(ax)
-    apply_legend(ax)
+    apply_legend(fig, ax)
     set_titles(fig,ax,0)
     fig.canvas.draw_idle()
     plt.pause(0.001)
@@ -183,7 +193,7 @@ def init_display():
 def update_display(fig, ax, im, score):
     im.set_data(grid)
     set_titles(fig,ax,score)
-    apply_legend(ax)
+    apply_legend(fig, ax)
     fig.canvas.draw_idle()
     plt.pause(0.001)
 
@@ -269,6 +279,9 @@ def main():
         current_score += points
         scorekeepr(current_score)
         update_display(fig, ax, im, current_score)
+
+        if current_score >= GOAL:
+            break
 
         if not enemy["active"] and (horm or d <= NEAR_TRIGGER_DIST):
             enemy["active"] = True
