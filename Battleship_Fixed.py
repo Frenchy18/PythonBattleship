@@ -16,11 +16,18 @@ from FriendlyShip import FriendlyShip
 GRID_SIZE = 11
 CHANNELS = 3
 
-#global score variables and distance variables
-high_score = 33
+# Global score variables and distance variables
+HIGH_SCORE = 33
 high_score_dist = 1
+GOAL = 99
 
-GOAL = 500
+# Distance shot to trigger AI Enemy
+NEAR_TRIGGER_DIST = 3
+
+# Colors
+ENEMY_MISS_COLOR = (255,255,0)
+PLAYER_HIT_COLOR = (255,0,0)
+PLAYER_MISS_COLOR = (255)
 
 # Create a grid using NumPy
 grid = np.zeros((GRID_SIZE, GRID_SIZE, CHANNELS),np.uint8)
@@ -72,7 +79,7 @@ def calculate_distance(user_x, user_y, target_x, target_y):
 def calculate_score(distance):
     if distance <= high_score_dist:
         print("Bullseye Commander!")
-        return high_score,True
+        return HIGH_SCORE,True
     else:
         print("Miss!")
         return 0,False
@@ -99,13 +106,62 @@ def update_grid(user_x, user_y, horm):
     else:
         grid[user_y,user_x] = 255
 
+def enemy_init():
+    """State: active flag, fired set, and known hit cells on friendly ship"""
+    return {"active": False, "fired":set(), "known_hits":set()}
+
+def enemy_neighbors_within1(x,y):
+    for delta_x in (-1,0,1):
+        for delta_y in (-1,0,1):
+            if delta_x == 0 and delta_y == 0:
+                continue
+            neighbor_x, neighbor_y = x + delta_x, y + delta_y
+            if 0 <= neighbor_x < GRID_SIZE and 0 <= neighbor_y < GRID_SIZE:
+                yield (neighbor_x,neighbor_y)
+
+def enemy_fire_random(state):
+    """Picks a random not yet fired coordinate"""
+    available_targets = [
+        (x,y)
+        for x in range(GRID_SIZE)
+        for y in  range(GRID_SIZE)
+        if (x,y) not in state["fired"]
+    ]
+
+    return rand.choice(available_targets) if available_targets else None
+
+def enemy_pick_target(state):
+    """If known hits, pick random neighbor tile otherwise random tile"""
+    candidates = set()
+    for (hit_x,hit_y) in state["known_hits"]:
+        candidates.update(enemy_neighbors_within1(hit_x,hit_y))
+    candidates = [c for c in candidates if c not in state["fired"]]
+    if candidates:
+        return rand.choice(candidates)
+    return enemy_fire_random(state)
+
+def enemy_fire(ship: FriendlyShip, state):
+    """Enemy takes one shot. Returns (x,y, hit). Enemy misses show as yellow"""
+    shot = enemy_pick_target(state) if state["known_hits"] else enemy_fire_random(state)
+    if shot is None:
+        return None, None, False
+    x, y = shot
+    state["fired"].add((x,y))
+
+    if ship.register_shot(x,y):
+        state["known_hits"].add((x,y))
+        return x,y, True
+    else:
+        grid[y,x] = ENEMY_MISS_COLOR
+        return x,y,False
+
 def acquire_rand():
     return rand.randint(0,GRID_SIZE-1),rand.randint(0,GRID_SIZE-1)
 
 def setup_friendly():
     ship = FriendlyShip(grid_size=GRID_SIZE)
-    cx,cy = FriendlyShip.prompt_friendly(GRID_SIZE)
-    ship.place_center(cx,cy)
+    center_x,center_y = FriendlyShip.prompt_friendly(GRID_SIZE)
+    ship.place_center(center_x,center_y)
     return ship
 
 def main():
@@ -113,6 +169,8 @@ def main():
     target = acquire_rand()
     current_score = 0
     ship = setup_friendly()
+
+    enemy = enemy_init()
 
     fig, ax, im = init_display()
     ship.paint_on_grid(grid)
@@ -122,25 +180,30 @@ def main():
         x = request_coor("x", target)
         y = request_coor("y", target)
         d = calculate_distance(x,y,*target)
-        s,horm = calculate_score(d)
+        points,horm = calculate_score(d)
         update_grid(x,y,horm)
 
         ship.paint_on_grid(grid)
         update_display(fig, im)
 
-        current_score += s
+        current_score += points
         scorekeepr(current_score)
 
-        if ship.register_shot(x,y):
-            print("You were hit!")
-            ship.paint_on_grid(grid)
-            update_display(fig,im)
-            if ship.is_sunk():
-                print("Your ship has been sunk!\n" \
-                "You've let us down Commander.\n"
-                "Try again next time!")
-                raise SystemExit
-        ship.paint_on_grid(grid)
+        if not enemy["active"] and (horm or d <= NEAR_TRIGGER_DIST):
+            enemy["active"] = True
+            print("Enemy has detected your presence!")
+        if enemy["active"]:
+            ex,ey,e_hit = enemy_fire(ship,enemy)
+            if ex is not None:
+                print(f"Enemy fires at ({ex},{ey}) - {"HIT!" if e_hit else 'miss.'}")
+
+                ship.paint_on_grid(grid)
+                update_display(fig, im)
+
+                if ship.is_sunk():
+                    print("Your ship has been sunk!\n" \
+                    "You've let us down Commander.\n"
+                    "Try again next time!")
 
     plt.ioff()
     plt.show()
