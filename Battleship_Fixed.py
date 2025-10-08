@@ -19,9 +19,9 @@ GRID_SIZE = 11
 CHANNELS = 3
 
 # Global score variables and distance variables
-HIGH_SCORE = 33
+HIGH_SCORE = 1
 HIGH_SCORE_DIST = 1
-GOAL = 500
+GOAL = 3
 
 # Distance shot to trigger AI Enemy
 NEAR_TRIGGER_DIST = 3
