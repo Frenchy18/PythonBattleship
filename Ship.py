@@ -29,7 +29,7 @@ class Ship:
         else:
             if not (1 <= x <= self.grid_size -2 and 0 <= y < self.grid_size):
                 raise ValueError(f"Center x must be in [1, {self.grid_size -2}] for horizontal ships.")
-            return {(x-1,y),(x,y),(x+y,y)}
+            return {(x-1,y),(x,y),(x+1,y)}
 
     def place_center(self, x, y, orientation: Optional[Orientation] = None):
         ori = orientation or self.orientation
@@ -69,11 +69,38 @@ class Ship:
             for (x,y) in self.hits:
                 grid[y,x] = color_hit
 
+    def _normalize_orientation(text):
+        t = (text or "").strip().lower()
+        if t in ("v", "vert", "vertical"):
+            return "V"
+        if t in ("h","horiz","horizontal"):
+            return "H"
+        raise ValueError("Please enter V or H (Vertical/Horizontal)")
+
     def prompt_friendly(grid_size):
         """
         Prompt for vertical ship center
         y must be 1 to grid_size -2 so ship fits vertically
         """
+        while True:
+            ori_inp = input("Choose orientation[V/H]: ").strip()
+            try:
+                ori = Ship._normalize_orientation(ori_inp)
+                break
+            except ValueError as e:
+                print(e)
+
+        if ori == "V":
+            prompt_x = f"Choose ship center X (0..{grid_size-1}): "
+            prompt_y = f"Choose ship center Y (1..{grid_size-2}): "
+            x_ok = lambda x: 0 <= x <= grid_size -1
+            y_ok = lambda y: 1 <= y <= grid_size -2
+        else:
+            prompt_x = f"Choose ship center X (1..{grid_size-2}): "
+            prompt_y = f"Choose ship center Y (0..{grid_size-1}): "
+            x_ok = lambda x: 1 <= x <= grid_size -2
+            y_ok = lambda y: 0 <= y <= grid_size -1
+
         while True:
             inp_x = input(f"Choose ship center X (0..{grid_size-1}): ").strip()
             inp_y = input(f"Choose ship center Y (0..{grid_size-1}: ").strip()
@@ -85,8 +112,8 @@ class Ship:
             except ValueError:
                 print("Please enter integers.")
                 continue
-            if 0 <= x < grid_size and 1 <= y <= grid_size -2:
-                return x,y
+            if x_ok(x) and y_ok(y):
+                return x,y, ori
             print("Center to close to edge and is out of bounds. Try again.")
 
     def random_valid_center(grid_size, orientation: Orientation):
@@ -95,6 +122,7 @@ class Ship:
         else:
             return rand.randint(1,grid_size-2),rand.randint(0,grid_size -1)
     
+    @classmethod
     def spawn_no_overlap(
             cls,
             grid_size: int,
@@ -117,6 +145,7 @@ class Ship:
             
         raise RuntimeError("Could not place ship without overlap after max tries")
     
+    @classmethod
     def place_many_no_overlap(
             cls,
             grid_size,

@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from matplotlib.widgets import TextBox
-from TestCode.Ship import Ship
+from Ship import Ship
 
 
 # Initialize grid size and channels
@@ -58,6 +58,7 @@ def instructions():
 
     print(
         "\n=== How to Play === \n"
+        f"* Choose your ship orientation (V/H), then place its center safely within the bounds. \n"
         f"* Enter grid coordinates in Battleship style, e.g., B7 or K{GRID_SIZE}.\n"
         f"* Columns:  A..{max_col} Rows: 1..{GRID_SIZE}\n"
         "* Type 'help' anytime to re-show these instructions. \n"
@@ -328,8 +329,9 @@ def acquire_rand(excluded_cells):
             return x,y
         
 def setup_friendly():
-    ship = Ship(grid_size=GRID_SIZE)
-    center_x,center_y = Ship.prompt_friendly(GRID_SIZE)
+    
+    center_x,center_y, ori = Ship.prompt_friendly(GRID_SIZE)
+    ship = Ship(grid_size=GRID_SIZE, orientation = ori)
     ship.place_center(center_x,center_y)
     return ship
 
