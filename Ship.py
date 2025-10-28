@@ -1,26 +1,41 @@
-from dataclasses import dataclass, field
-from typing import Iterable, List, Set, Tuple
+from typing import Iterable, List, Set, Tuple, Literal, Optional
 import random as rand
 
 Coord = Tuple[int, int]
+Orientation = Literal["V","H"]
 
 class Ship:
+    """
+    3-cell ship with orientation either "V" (Vertical) or "H" (Horizontal)
+    Sinks after 3 hits, Usable for friendly or enemy ships.
+    """
 
-    def __init__(self, grid_size):
+    def __init__(self, grid_size:int, length: int=3, orientation: Orientation = "V"):
+        if length != 3:
+            raise ValueError("Requires a minimum length of 3.")
         if grid_size < 3:
             raise ValueError("grid_size must be at least 3.")
         self.grid_size = grid_size
+        self.length = length
+        self.orientation: Orientation = orientation
         self.cells: Set[Coord] = set()
         self.hits: Set[Coord] = set()
 
-    def place_center(self, x, y):
-        if not (0 <= x < self.grid_size):
-            raise ValueError(f"x must be in [0, {self.grid_size}]")
-        
-        if not (1 <= y <= self.grid_size -2):
-            raise ValueError(f"y must be in [1, {self.grid_size}]")
-        
-        self.cells = {(x,y-1),(x,y),(x,y+1)}
+    def _cells_from_center(self, x: int, y: int, orientation: Orientation):
+        if orientation == "V":
+            if not (0 <= x < self.grid_size and 1 <= y <= self.grid_size -2):
+                raise ValueError(f"For vertical placement, y must be in [1, {self.grid_size -2}].")
+            return {(x,y-1),(x,y),(x,y+1)}
+        else:
+            if not (1 <= x <= self.grid_size -2 and 0 <= y < self.grid_size):
+                raise ValueError(f"Center x must be in [1, {self.grid_size -2}] for horizontal ships.")
+            return {(x-1,y),(x,y),(x+y,y)}
+
+    def place_center(self, x, y, orientation: Optional[Orientation] = None):
+        ori = orientation or self.orientation
+        cells = self._cells_from_center(x,y,ori)
+        self.orientation = ori
+        self.cells = cells
         self.hits.clear()
 
     def register_shot(self,x,y):
@@ -31,7 +46,7 @@ class Ship:
         return False
     
     def is_sunk(self):
-        return len(self.hits) == 3
+        return len(self.hits) == self.length
     
     def remaining_cells(self):
         return self.cells - self.hits
@@ -55,6 +70,10 @@ class Ship:
                 grid[y,x] = color_hit
 
     def prompt_friendly(grid_size):
+        """
+        Prompt for vertical ship center
+        y must be 1 to grid_size -2 so ship fits vertically
+        """
         while True:
             inp_x = input(f"Choose ship center X (0..{grid_size-1}): ").strip()
             inp_y = input(f"Choose ship center Y (0..{grid_size-1}: ").strip()
@@ -70,25 +89,31 @@ class Ship:
                 return x,y
             print("Center to close to edge and is out of bounds. Try again.")
 
-    def random_valid_center(grid_size):
-        x,y = rand.randint(0,grid_size-1),rand.randint(1,grid_size-2)
-
-        return x,y
+    def random_valid_center(grid_size, orientation: Orientation):
+        if orientation == "V":
+            return rand.randint(0,grid_size-1),rand.randint(1,grid_size-2)
+        else:
+            return rand.randint(1,grid_size-2),rand.randint(0,grid_size -1)
     
     def spawn_no_overlap(
             cls,
             grid_size: int,
             forbidden: Iterable[Coord] = (),
+            orientations: Iterable[Orientation] = ("V","H"),
             max_tries: int = 10000,
     ):
         blocked = set(forbidden)
         for _ in range(max_tries):
-            x,y = cls.random_valid_center(grid_size)
-            candidate = {(x,y-1),(x,y),(x,y+1)}
-            if candidate.isdisjoint(blocked):
-                ship = cls(grid_size)
-                ship.place_center(x,y)
-                return ship
+            ori = rand.choice(tuple(orientations))
+            cx,cy = cls.random_valid_center(grid_size,ori)
+            try:
+                cells = cls(grid_size,orientation=ori)._cells_from_center(cx,cy,ori)
+            except ValueError:
+                continue
+            if cells.isdisjoint(blocked):
+                s = cls(grid_size,orientation=ori)
+                s.place_center(cx,cy,ori)
+                return s
             
         raise RuntimeError("Could not place ship without overlap after max tries")
     
@@ -97,6 +122,7 @@ class Ship:
             grid_size,
             count: int,
             forbidden: Iterable[Coord] = (),
+            orientations: Iterable[Orientation] = ("V","H"),
             max_tries: int = 10000,
     ):
         ships: List[Ship] = []

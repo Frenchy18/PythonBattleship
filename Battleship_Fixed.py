@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from matplotlib.widgets import TextBox
-from FriendlyShip import Ship
+from TestCode.Ship import Ship
 
 
 # Initialize grid size and channels
